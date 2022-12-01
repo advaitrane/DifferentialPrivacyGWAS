@@ -55,7 +55,7 @@ def read_bed_for_snp(data_dir, file_name, snp_idx):
 	return genotype_list
 
 def read_phenotype(data_dir, file_name):
-	pheno_file_path = os.path.join(data_dir, file_name)
+	pheno_file_path = os.path.join(data_dir, file_name + ".pheno")
 	phenotype_list = []
 	with open(pheno_file_path, 'r') as f:
 		l = f.readline()
@@ -64,3 +64,66 @@ def read_phenotype(data_dir, file_name):
 			phenotype_list.append(phenotype)
 
 	return phenotype_list
+
+def get_SNP_name(data_dir, file_name, SNP_idx):
+	bim_file_path = os.path.join(data_dir, file_name + ".bim")
+
+	with open(bim_file_path, 'r') as f:
+		for line_idx, line in enumerate(f):
+			if line_idx == SNP_idx:
+				SNP_name = line.split('\t')[1]
+	return SNP_name
+
+def get_causal_SNPS(data_dir, phenotype_file_name):
+	causals_file_path = os.path.join(data_dir, phenotype_file_name + ".1.causals")
+
+	causal_SNPs = []
+	with open(causals_file_path, 'r') as f:
+		for idx, line in enumerate(f):
+			if idx == 0:
+				continue
+			causal_SNPs.append(line.split("\t")[0])
+
+	return causal_SNPs
+
+def get_num_SNPs(data_dir, genotype_file_name):
+	return num_lines_in_file(os.path.join(data_dir, genotype_file_name + ".bim"))
+
+def get_dataset(data_dir, genotype_file_name, phenotype_file_name, snp_idxs):
+	x = []
+
+	for snp_idx in snp_idxs:
+		x.append(read_bed_for_snp(data_dir, genotype_file_name, snp_idx))
+
+	x = np.array(x).T
+
+	y = np.array(read_phenotype(data_dir, phenotype_file_name))
+	y = 2*y - 3
+
+	drop_rows = (x != -1).all(1)
+	x = x[drop_rows]
+	y = y[drop_rows]
+
+	return x, y
+
+def get_metrics(y_true, y_pred):
+	acc = round((y_true == y_pred).sum().item()/len(y_pred), 3)
+
+	pos_pred = y_pred[y_pred == 1]
+	pos_true = y_true[y_pred == 1]
+	tp = (pos_pred == pos_true).sum().item()
+	fp = len(pos_pred) - tp
+	neg_pred = y_pred[y_pred == -1]
+	neg_true = y_true[y_pred == -1]
+	tn = (neg_pred == neg_true).sum().item()
+	fn = len(neg_pred) - tn
+
+	if tp == 0:
+		precision = 0
+		recall = 0
+	else:
+		precision = round(tp/(tp+fp), 3)
+		recall = round(tp/(tp+fn), 3)
+
+	return acc, precision, recall
+
